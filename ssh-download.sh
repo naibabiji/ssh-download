@@ -293,6 +293,15 @@ read -p "请输入SSH用户名（默认 $DEFAULT_USER，回车跳过）：" SOUR
 SOURCE_USER=${SOURCE_USER:-$DEFAULT_USER};
 if [[ $SOURCE_USER =~ ^q$|^Q$ ]]; then exit_script; fi;
 
+# 新增：检测核心命令是否存在（修复rsync未检测问题）
+info "检测核心命令（rsync/scp）...";
+if ! command_exists rsync; then
+  warning "未找到 rsync 命令（优先下载工具），将仅使用 scp 备选（仅支持文件下载）";
+fi
+if ! command_exists scp; then
+  error "未找到 scp 命令！请先安装 OpenSSH 客户端（Ubuntu: sudo apt install openssh-client；CentOS: sudo yum install openssh-clients）";
+fi
+
 # 2. 测试SSH连接
 test_ssh_connection "$SOURCE_USER" "$SOURCE_IP" "$SOURCE_PORT";
 
@@ -398,11 +407,11 @@ if (( DOWNLOAD_TYPE == 1 )); then
     fi
   fi
 
-  # 校验文件完整性
+  # 校验文件完整性（修复：移除主流程中的local关键字）
   info "校验文件完整性...";
-  local source_size="";
-  local dest_size="";
-  local size_check_enabled=1;
+  source_size="";
+  dest_size="";
+  size_check_enabled=1;
   if command_exists du; then
     source_size=$(ssh "${SSH_COMMON_OPTIONS[@]}" -p "$SOURCE_PORT" "$SOURCE_USER@$SOURCE_IP" "du -b $escaped_SOURCE_PATH | cut -f1" 2>/dev/null);
     dest_size=$(du -b "$DEST_FULL_PATH" 2>/dev/null | cut -f1);
@@ -411,9 +420,9 @@ if (( DOWNLOAD_TYPE == 1 )); then
     size_check_enabled=0;
   fi
 
-  local source_md5=$(get_md5 "$SOURCE_PATH" 1);
-  local dest_md5=$(get_md5 "$DEST_FULL_PATH" 0);
-  local md5_check_enabled=$([[ -n $source_md5 && -n $dest_md5 ]] && echo 1 || echo 0);
+  source_md5=$(get_md5 "$SOURCE_PATH" 1);
+  dest_md5=$(get_md5 "$DEST_FULL_PATH" 0);
+  md5_check_enabled=$([[ -n $source_md5 && -n $dest_md5 ]] && echo 1 || echo 0);
 
   # 完善校验结果处理（分场景提示）
   if (( size_check_enabled == 1 && md5_check_enabled == 1 )); then
@@ -457,11 +466,11 @@ else
     error "rsync 下载文件夹失败！请检查网络或路径";
   fi
 
-  # 校验文件夹完整性
+  # 校验文件夹完整性（修复：移除主流程中的local关键字）
   info "校验文件夹完整性...";
-  local source_file_count="";
-  local dest_file_count="";
-  local count_check_enabled=1;
+  source_file_count="";
+  dest_file_count="";
+  count_check_enabled=1;
   if command_exists find; then
     source_file_count=$(ssh "${SSH_COMMON_OPTIONS[@]}" -p "$SOURCE_PORT" "$SOURCE_USER@$SOURCE_IP" "find $escaped_SOURCE_PATH -type f | wc -l" 2>/dev/null);
     dest_file_count=$(find "$DEST_FULL_PATH" -type f | wc -l 2>/dev/null);
